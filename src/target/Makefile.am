@@ -35,6 +35,8 @@ libtarget_la_SOURCES = \
 	$(AVR32_SRC) \
 	$(MIPS32_SRC) \
 	$(NDS32_SRC) \
+	$(INTEL_IA32_SRC) \
+	$(ARC32_SRC) \
 	avrt.c \
 	dsp563xx.c \
 	dsp563xx_once.c \
@@ -124,6 +126,25 @@ NDS32_SRC = \
 	nds32_v3m.c \
 	nds32_aice.c
 
+INTEL_IA32_SRC = \
+	quark_x10xx.c \
+	quark_d2000.c \
+	quark_se.c \
+	lakemont.c \
+	x86_32_common.c
+
+ARC32_SRC = \
+	arc.c \
+	arc32.c \
+	arc_core.c \
+	arc_dbg.c \
+	arc_jtag.c \
+	arc_mem.c \
+	arc_mntr.c \
+	arc_ocd.c \
+	arc_regs.c \
+	arc_trgt.c
+
 
 noinst_HEADERS = \
 	algorithm.h \
@@ -191,7 +212,19 @@ noinst_HEADERS = \
 	nds32_v3_common.h \
 	nds32_v3.h \
 	nds32_v3m.h \
-	nds32_aice.h
+	nds32_aice.h \
+	lakemont.h \
+	x86_32_common.h \
+	arc.h \
+	arc32.h \
+	arc_core.h \
+	arc_dbg.h \
+	arc_jtag.h \
+	arc_mem.h \
+	arc_mntr.h \
+	arc_ocd.h \
+	arc_regs.h \
+	arc_trgt.h
 
 ocddatadir = $(pkglibdir)
 nobase_dist_ocddata_DATA =

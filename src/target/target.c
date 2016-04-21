@@ -97,11 +97,15 @@ extern struct target_type dsp563xx_target;
 extern struct target_type dsp5680xx_target;
 extern struct target_type testee_target;
 extern struct target_type avr32_ap7k_target;
+extern struct target_type arc32_target;
 extern struct target_type hla_target;
 extern struct target_type nds32_v2_target;
 extern struct target_type nds32_v3_target;
 extern struct target_type nds32_v3m_target;
 extern struct target_type or1k_target;
+extern struct target_type quark_x10xx_target;
+extern struct target_type quark_d2000_target;
+extern struct target_type quark_se_target;
 
 static struct target_type *target_types[] = {
 	&arm7tdmi_target,
@@ -125,11 +129,15 @@ static struct target_type *target_types[] = {
 	&dsp5680xx_target,
 	&testee_target,
 	&avr32_ap7k_target,
+	&arc32_target,
 	&hla_target,
 	&nds32_v2_target,
 	&nds32_v3_target,
 	&nds32_v3m_target,
 	&or1k_target,
+	&quark_x10xx_target,
+	&quark_d2000_target,
+	&quark_se_target,
 	NULL,
 };
 
@@ -448,7 +456,7 @@ struct target *get_target(const char *id)
 
 	for (target = all_targets; target; target = target->next) {
 		if (target->target_number == (int)num) {
-			LOG_WARNING("use '%s' as target identifier, not '%u'",
+			LOG_DEBUG("Target: '%s' selected, with number '%u'",
 					target_name(target), num);
 			return target;
 		}
@@ -3000,17 +3008,17 @@ COMMAND_HANDLER(handle_load_image_command)
 
 		/* DANGER!!! beware of unsigned comparision here!!! */
 
-		if ((image.sections[i].base_address + buf_cnt >= min_address) &&
+		if ((image.sections[i].base_address + image.sections[i].size >= min_address) &&
 				(image.sections[i].base_address < max_address)) {
+
+			if ((image.sections[i].size >= 1) && ((image.sections[i].size - 1) > (max_address - image.sections[i].base_address)))
+				length = max_address - image.sections[i].base_address + 1;
 
 			if (image.sections[i].base_address < min_address) {
 				/* clip addresses below */
 				offset += min_address-image.sections[i].base_address;
 				length -= offset;
 			}
-
-			if (image.sections[i].base_address + buf_cnt > max_address)
-				length -= (image.sections[i].base_address + buf_cnt)-max_address;
 
 			retval = target_write_buffer(target,
 					image.sections[i].base_address + offset, length, buffer + offset);
@@ -3101,15 +3109,15 @@ COMMAND_HANDLER(handle_dump_image_command)
 	return retval;
 }
 
-static COMMAND_HELPER(handle_verify_image_command_internal, int verify)
+static COMMAND_HELPER(handle_verify_image_command_body_internal, int verify, int section_offset)
 {
 	uint8_t *buffer;
 	size_t buf_cnt;
 	uint32_t image_size;
 	int i;
 	int retval;
-	uint32_t checksum = 0;
-	uint32_t mem_checksum = 0;
+	uint32_t section_offset_val = 0;
+	uint32_t total_bytes_verified = 0;
 
 	struct image image;
 
@@ -3138,7 +3146,13 @@ static COMMAND_HELPER(handle_verify_image_command_internal, int verify)
 
 	image.start_address_set = 0;
 
-	retval = image_open(&image, CMD_ARGV[0], (CMD_ARGC == 3) ? CMD_ARGV[2] : NULL);
+	if (section_offset == 0) {
+		retval = image_open(&image, CMD_ARGV[0], (CMD_ARGC == 3) ? CMD_ARGV[2] : NULL);
+	} else {
+		retval = image_open(&image, CMD_ARGV[0], NULL);
+		COMMAND_PARSE_NUMBER(u32, CMD_ARGV[2], section_offset_val);
+		LOG_DEBUG("Section_offset_val 0x%08" PRIx32, section_offset_val);
+	}
 	if (retval != ERROR_OK)
 		return retval;
 
@@ -3160,26 +3174,12 @@ static COMMAND_HELPER(handle_verify_image_command_internal, int verify)
 		}
 
 		if (verify) {
-			/* calculate checksum of image */
-			retval = image_calculate_checksum(buffer, buf_cnt, &checksum);
-			if (retval != ERROR_OK) {
-				free(buffer);
-				break;
-			}
-
-			retval = target_checksum_memory(target, image.sections[i].base_address, buf_cnt, &mem_checksum);
-			if (retval != ERROR_OK) {
-				free(buffer);
-				break;
-			}
-
-			if (checksum != mem_checksum) {
-				/* failed crc checksum, fall back to a binary compare */
+			if (buf_cnt < section_offset_val) {
+				LOG_ERROR("Can't skip 0x%08" PRIx32 " bytes, section %d contains only 0x%08" PRIx32,
+					section_offset_val, i, (uint32_t)buf_cnt);
+			} else {
+				/* do a binary compare */
 				uint8_t *data;
-
-				if (diffs == 0)
-					LOG_ERROR("checksum mismatch - attempting binary compare");
-
 				data = (uint8_t *)malloc(buf_cnt);
 
 				/* Can we use 32bit word accesses? */
@@ -3192,7 +3192,7 @@ static COMMAND_HELPER(handle_verify_image_command_internal, int verify)
 				retval = target_read_memory(target, image.sections[i].base_address, size, count, data);
 				if (retval == ERROR_OK) {
 					uint32_t t;
-					for (t = 0; t < buf_cnt; t++) {
+					for (t = 0 + section_offset_val; t < buf_cnt; t++, total_bytes_verified++) {
 						if (data[t] != buffer[t]) {
 							command_print(CMD_CTX,
 										  "diff %d address 0x%08x. Was 0x%02x instead of 0x%02x",
@@ -3200,8 +3200,8 @@ static COMMAND_HELPER(handle_verify_image_command_internal, int verify)
 										  (unsigned)(t + image.sections[i].base_address),
 										  data[t],
 										  buffer[t]);
-							if (diffs++ >= 127) {
-								command_print(CMD_CTX, "More than 128 errors, the rest are not printed.");
+							if (diffs++ >= 7) {
+								command_print(CMD_CTX, "More than 8 errors, the rest are not printed.");
 								free(data);
 								free(buffer);
 								goto done;
@@ -3228,7 +3228,7 @@ done:
 		retval = ERROR_FAIL;
 	if ((ERROR_OK == retval) && (duration_measure(&bench) == ERROR_OK)) {
 		command_print(CMD_CTX, "verified %" PRIu32 " bytes "
-				"in %fs (%0.3f KiB/s)", image_size,
+				"in %fs (%0.3f KiB/s)", total_bytes_verified,
 				duration_elapsed(&bench), duration_kbps(&bench, image_size));
 	}
 
@@ -3237,14 +3237,24 @@ done:
 	return retval;
 }
 
+static COMMAND_HELPER(handle_verify_image_command_internal, int verify, int section_offset)
+{
+	return CALL_COMMAND_HANDLER(handle_verify_image_command_body_internal, verify, section_offset);
+}
+
 COMMAND_HANDLER(handle_verify_image_command)
 {
-	return CALL_COMMAND_HANDLER(handle_verify_image_command_internal, 1);
+	return CALL_COMMAND_HANDLER(handle_verify_image_command_internal, 1, 0);
+}
+
+COMMAND_HANDLER(handle_verify_image_offset_command)
+{
+	return CALL_COMMAND_HANDLER(handle_verify_image_command_internal, 1, 1);
 }
 
 COMMAND_HANDLER(handle_test_image_command)
 {
-	return CALL_COMMAND_HANDLER(handle_verify_image_command_internal, 0);
+	return CALL_COMMAND_HANDLER(handle_verify_image_command_internal, 0, 0);
 }
 
 static int handle_bp_command_list(struct command_context *cmd_ctx)
@@ -3385,7 +3395,7 @@ COMMAND_HANDLER(handle_wp_command)
 		while (watchpoint) {
 			command_print(CMD_CTX, "address: 0x%8.8" PRIx32
 					", len: 0x%8.8" PRIx32
-					", r/w/a: %i, value: 0x%8.8" PRIx32
+					", r/w/a/i: %i, value: 0x%8.8" PRIx32
 					", mask: 0x%8.8" PRIx32,
 					watchpoint->address,
 					watchpoint->length,
@@ -3420,6 +3430,9 @@ COMMAND_HANDLER(handle_wp_command)
 			break;
 		case 'a':
 			type = WPT_ACCESS;
+			break;
+		case 'i':
+			type = WPT_IO;
 			break;
 		default:
 			LOG_ERROR("invalid watchpoint mode ('%c')", CMD_ARGV[2][0]);
@@ -5325,7 +5338,6 @@ static int jim_target_number(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 	Jim_GetOpt_Setup(&goi, interp, argc - 1, argv + 1);
 
 	/* It's OK to remove this mechanism sometime after August 2010 or so */
-	LOG_WARNING("don't use numbers as target identifiers; use names");
 	if (goi.argc != 1) {
 		Jim_SetResultFormatted(goi.interp, "usage: target number <number>");
 		return JIM_ERR;
@@ -5988,7 +6000,7 @@ static const struct command_registration target_exec_command_handlers[] = {
 		.handler = handle_wp_command,
 		.mode = COMMAND_EXEC,
 		.help = "list (no params) or create watchpoints",
-		.usage = "[address length [('r'|'w'|'a') value [mask]]]",
+		.usage = "[address length [('r'|'w'|'a'|'i') value [mask]]]",
 	},
 	{
 		.name = "rwp",
@@ -6015,6 +6027,12 @@ static const struct command_registration target_exec_command_handlers[] = {
 		.handler = handle_verify_image_command,
 		.mode = COMMAND_EXEC,
 		.usage = "filename [offset [type]]",
+	},
+	{
+		.name = "verify_image_offset",
+		.handler = handle_verify_image_offset_command,
+		.mode = COMMAND_EXEC,
+		.usage = "filename [offset [section_offset]]",
 	},
 	{
 		.name = "test_image",
