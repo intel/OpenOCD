@@ -1,0 +1,20 @@
+Arduino sketches can be debugged with GDB using an OpenOCD session.
+
+Run these commands in SEPARATE windows
+1. "<openocd_dir>/bin/openocd " 
+      -f "<openocd_dir>/scripts/interface/ftdi/flyswatter2.cfg" 
+      -f "<openocd_dir>/scripts/board/quark_se.cfg"
+2. <gdb> "<tmp_dir>/arduino101_sketch.debug.elf"
+
+In GDB, run the command: 
+   target remote localhost:3333
+
+Where
+openocd_dir="<arduino15_dir>/packages/Intel/tools/openocd/<version>"
+gdb ="<arduino15>/packages/Intel/tools/arc-elf32/<version>/bin/arc-elf32-gdb" 
+tmp_dir=%TMP% (on Windows)
+tmp_dir=/tmp (on Linux and OSX)
+arduino15_dir=%LOCALAPPDATA%\ARDUINO15  (on Windows)
+arduino15_dir=$HOME/.arduino15  (on Linux)
+arduino15_dir=/Users/<username>/Library/Arduino15  (on OSX)
+
