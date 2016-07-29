@@ -21,3 +21,8 @@ arduino15_dir=%LOCALAPPDATA%\ARDUINO15  (on Windows)
 arduino15_dir=$HOME/.arduino15  (on Linux)
 arduino15_dir=/Users/<username>/Library/Arduino15  (on OSX)
 
+Note: GDB may display some expected messages/errors when connecting to 
+the target:
+	Error: Couldn't find core register feature in supplied target
+	description.warning: Architecture rejected target-supplied description
+
