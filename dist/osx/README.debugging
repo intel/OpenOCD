@@ -15,7 +15,8 @@ openocd_dir="<arduino15_dir>/packages/Intel/tools/openocd/<version>"
 gdb ="<arduino15>/packages/Intel/tools/arc-elf32/<version>/bin/arc-elf32-gdb" 
 tmp_dir=%TMP% (on Windows)
 tmp_dir=/tmp (on Linux)
-* On OSX, build with VERBOSE mode to see the exact build folder name
+* On OSX, build with VERBOSE mode to see the exact build folder path. The 
+  debug sketch will be in the parent of the build folder.
 
 arduino15_dir=%LOCALAPPDATA%\ARDUINO15  (on Windows)
 arduino15_dir=$HOME/.arduino15  (on Linux)
