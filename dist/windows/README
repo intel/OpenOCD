@@ -1,0 +1,28 @@
+This utility is based on OpenOCD 0.9 and libusb 1.0.9.
+
+Source
+==================
+https://github.com/01org/OpenOCD
+
+Build Instructions
+==================
+Built on Ubuntu 14.04 64-bit
+
+# build libusb
+tar xjvf /mnt/p-sys_maker/public/libusb/libusb-1.0.9.tar.bz2
+cd libusb-1.0.9
+./configure --enable-static --disable-shared
+make clean
+make -j4
+
+# build OpenOCD
+sudo apt-get install make libtool pkg-config autoconf automake texinfo
+./bootstrap 
+export LIBUSB_DIR=`pwd`/libusb-1.0.9
+LIBUSB1_CFLAGS=-I$LIBUSB_DIR/libusb/ LIBUSB1_LIBS="-L$LIBUSB_DIR/libusb/.libs/ -lusb-1.0" \
+    ./configure --disable-werror --enable-ftdi --enable-static
+make clean
+make -j4
+strip src/openocd
+cp src/openocd ./openocd.l64
+make clean
