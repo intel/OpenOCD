@@ -2,10 +2,8 @@ Arduino sketches can be debugged with GDB using an OpenOCD session over a JTAG
 connection.
 
 After uploading a sketch to the board, run these commands in SEPARATE windows
-1. "<openocd_dir>/bin/openocd " 
-      -f "<openocd_dir>/scripts/interface/ftdi/flyswatter2.cfg" 
-      -f "<openocd_dir>/scripts/board/quark_se.cfg"
-2. <gdb> "<tmp_dir>/arduino101_sketch.debug.elf"
+1. "<openocd_dir>\start-openocd.bat" 
+2. <gdb> "<tmp_dir>\arduino101_sketch.debug.elf"
 
 In GDB, run the command: 
    target remote localhost:3333
